@@ -28,6 +28,7 @@
   import { user } from '$lib/stores/user.store';
   import { getSharedLink, withoutIcons } from '$lib/utils';
   import type { OnUndoDelete } from '$lib/utils/actions';
+  import { removeAssetsFromAlbum } from '$lib/utils/album-utils';
   import { toTimelineAsset } from '$lib/utils/timeline-util';
   import {
     AssetTypeEnum,
@@ -43,6 +44,7 @@
     mdiArrowRight,
     mdiCompare,
     mdiDotsVertical,
+    mdiImageRemoveOutline,
     mdiImageSearch,
     mdiPresentationPlay,
     mdiVideoOutline,
@@ -99,9 +101,38 @@
 
   const Actions = $derived(getAssetActions($t, asset));
   const sharedLink = getSharedLink();
+
+  const removeFromAlbumAction = async (skipConfirm: boolean) => {
+    if (!album) {
+      return;
+    }
+    const removedIds = await removeAssetsFromAlbum(album.id, [asset.id], { skipConfirm });
+    if (removedIds) {
+      onRemoveFromAlbum?.(removedIds);
+    }
+  };
+
+  const RemoveFromAlbum: ActionItem = $derived({
+    title: $t('remove_from_album'),
+    icon: mdiImageRemoveOutline,
+    shortcuts: [{ key: 'r' }],
+    $if: () => !!album && (isOwner || isAlbumOwner),
+    onAction: () => removeFromAlbumAction(false),
+  });
+
+  const RemoveFromAlbumForce: ActionItem = $derived({
+    title: $t('remove_from_album'),
+    icon: mdiImageRemoveOutline,
+    shortcuts: [{ key: 'r', shift: true }],
+    $if: () => !!album && (isOwner || isAlbumOwner),
+    onAction: () => removeFromAlbumAction(true),
+  });
 </script>
 
-<CommandPaletteDefaultProvider name={$t('assets')} actions={withoutIcons([Close, Cast, ...Object.values(Actions)])} />
+<CommandPaletteDefaultProvider
+  name={$t('assets')}
+  actions={withoutIcons([Close, RemoveFromAlbum, RemoveFromAlbumForce, Cast, ...Object.values(Actions)])}
+/>
 
 <div
   class="flex h-16 place-items-center justify-between bg-linear-to-b from-black/40 px-3 transition-transform duration-200 drop-shadow-[0_0_1px_rgba(0,0,0,0.4)]"

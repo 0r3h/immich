@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto, onNavigate } from '$app/navigation';
   import { scrollMemoryClearer } from '$lib/actions/scroll-memory';
+  import { shortcuts, type ShortcutOptions } from '$lib/actions/shortcut';
   import AlbumDescription from '$lib/components/album-page/album-description.svelte';
   import AlbumMap from '$lib/components/album-page/album-map.svelte';
   import AlbumSummary from '$lib/components/album-page/album-summary.svelte';
@@ -44,6 +45,7 @@
     handleDeleteAlbum,
     handleDownloadAlbum,
   } from '$lib/services/album.service';
+  import { removeAssetsFromAlbum } from '$lib/utils/album-utils';
   import { getGlobalActions } from '$lib/services/app.service';
   import { getAssetBulkActions } from '$lib/services/asset.service';
   import { SlideshowNavigation, SlideshowState, slideshowStore } from '$lib/stores/slideshow.store';
@@ -57,6 +59,7 @@
     CommandPaletteDefaultProvider,
     Icon,
     IconButton,
+    isModalOpen,
     modalManager,
     toastManager,
   } from '@immich/ui';
@@ -159,6 +162,16 @@
   const handleRemoveAssets = async (assetIds: string[]) => {
     timelineManager.removeAssets(assetIds);
     await refreshAlbum();
+  };
+
+  const handleRemoveFromAlbumShortcut = async (skipConfirm = false) => {
+    const ids = assetMultiSelectManager.assets.map(({ id }) => id);
+    const removedIds = await removeAssetsFromAlbum(album.id, ids, { skipConfirm });
+    if (!removedIds) {
+      return;
+    }
+    await handleRemoveAssets(removedIds);
+    assetMultiSelectManager.clear();
   };
 
   const handleUndoRemoveAssets = async (assets: TimelineAsset[]) => {
@@ -321,7 +334,25 @@
     $if: () => !assetViewerManager.isViewing,
     shortcuts: { key: 'Escape' },
   });
+
+  const albumShortcuts = $derived.by<ShortcutOptions[]>(() => {
+    if (
+      viewMode !== AlbumPageViewMode.VIEW ||
+      !assetMultiSelectManager.selectionActive ||
+      !(isOwned || assetMultiSelectManager.isAllUserOwned) ||
+      assetViewerManager.isViewing ||
+      isModalOpen()
+    ) {
+      return [];
+    }
+    return [
+      { shortcut: { key: 'r' }, onShortcut: () => handleRemoveFromAlbumShortcut() },
+      { shortcut: { key: 'r', shift: true }, onShortcut: () => handleRemoveFromAlbumShortcut(true) },
+    ];
+  });
 </script>
+
+<svelte:document use:shortcuts={albumShortcuts} />
 
 <OnEvents
   {onSharedLinkCreate}
