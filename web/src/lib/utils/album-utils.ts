@@ -1,5 +1,6 @@
 import type { AlbumResponseDto } from '@immich/sdk';
 import * as sdk from '@immich/sdk';
+import { modalManager, toastManager } from '@immich/ui';
 import { orderBy } from 'lodash-es';
 import { t } from 'svelte-i18n';
 import { get } from 'svelte/store';
@@ -42,6 +43,31 @@ export const createAlbumAndRedirect = async (name?: string, assetIds?: string[])
   const newAlbum = await createAlbum(name, assetIds);
   if (newAlbum) {
     await goto(Route.viewAlbum(newAlbum));
+  }
+};
+
+export const removeAssetsFromAlbum = async (albumId: string, assetIds: string[]): Promise<string[] | undefined> => {
+  const $t = get(t);
+
+  if (assetIds.length === 0) {
+    return;
+  }
+
+  const isConfirmed = await modalManager.showDialog({
+    prompt: $t('remove_assets_album_confirmation', { values: { count: assetIds.length } }),
+  });
+
+  if (!isConfirmed) {
+    return;
+  }
+
+  try {
+    const results = await sdk.removeAssetFromAlbum({ id: albumId, bulkIdsDto: { ids: assetIds } });
+    const count = results.filter(({ success }) => success).length;
+    toastManager.primary($t('assets_removed_count', { values: { count } }));
+    return assetIds;
+  } catch (error) {
+    handleError(error, $t('errors.error_removing_assets_from_album'));
   }
 };
 
